@@ -3,10 +3,10 @@ use std::{
     process,
 };
 
-// use rand::Rng;
+use rand::Rng;
 
 fn main() {
-    // make_massive_dipshit_file();
+    make_massive_dipshit_file();
     eprintln!("Beginning");
     let mut set: AUF = AUF::new();
     let input = io::stdin();
@@ -158,7 +158,8 @@ impl AUF {
                 sum += i + 1
             }
         }
-        println!("{} {}", self.tree_size[root_of_a], sum)
+        println!("{} {}", self.tree_size[root_of_a], sum);
+        println!("{:?}", self)
     }
 }
 
@@ -172,23 +173,23 @@ pub fn string_to_vec(a: &String) -> Vec<usize> {
     numbers
 }
 
-// fn make_massive_dipshit_file() {
-//     let elem = 100;
-//     let com = 20;
-//     println!("{} {}", elem, com);
-//     let mut rng = rand::thread_rng();
-//     let mut d = 1;
-//     for _ in 0..com {
-//         if d % 5 == 0 {
-//             let a = 3;
-//             let b = rng.gen_range(1..=elem);
-//             println!("{} {}", a, b);
-//         } else {
-//             let a = rng.gen_range(1..=2);
-//             let b = rng.gen_range(1..=elem);
-//             let c = rng.gen_range(1..=elem);
-//             println!("{} {} {}", a, b, c);
-//         }
-//         d += 1;
-//     }
-// }
+fn make_massive_dipshit_file() {
+    let elem = 10;
+    let com = 100;
+    println!("{} {}", elem, com);
+    let mut rng = rand::thread_rng();
+    let mut d = 1;
+    for _ in 0..com {
+        if d % 5 == 0 {
+            let a = 3;
+            let b = rng.gen_range(1..=elem);
+            println!("{} {}", a, b);
+        } else {
+            let a = rng.gen_range(1..=2);
+            let b = rng.gen_range(1..=elem);
+            let c = rng.gen_range(1..=elem);
+            println!("{} {} {}", a, b, c);
+        }
+        d += 1;
+    }
+}
