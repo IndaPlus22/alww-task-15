@@ -3,11 +3,11 @@ use std::{
     process,
 };
 
-use rand::Rng;
+// use rand::Rng;
 
 fn main() {
-    make_massive_dipshit_file();
-    eprintln!("Beginning");
+    // make_massive_dipshit_file();
+    // eprintln!("Beginning");
     let mut set: AUF = AUF::new();
     let input = io::stdin();
     let mut lines = input.lock().lines();
@@ -15,8 +15,16 @@ fn main() {
     let mut command_counter = 0;
     let mut first_line = true;
     while let Some(line) = lines.next() {
-        let input = line.unwrap();
+        let input = match line {
+            Ok(string) => string,
+            Err(_) => {
+                continue;
+            }
+        };
         if first_line {
+            if input.is_empty() == true {
+                continue;
+            }
             let mut input = input.trim().split_ascii_whitespace();
             let elements = input.next().unwrap().parse::<usize>().expect("parse error");
             let commands = input.next().unwrap().parse::<usize>().expect("parse error");
@@ -25,14 +33,18 @@ fn main() {
             set.update(elements, commands);
             continue;
         }
-        // eprintln!("{}", input);
 
+        if command_counter < set.commands {
+            if input.is_empty() == true {
+                continue;
+            }
+        }
         if input.len() == 0 {
             break;
         }
 
         if command_counter == set.commands {
-            panic!()
+            break;
         }
         command_counter += 1;
         let parsed_input = string_to_vec(&input);
@@ -44,7 +56,7 @@ fn main() {
         }
     }
     // let mut set = AUF::new();
-    // set.update(6);
+    // set.update(5, 20);
     // set.balanced_union(0, 1);
     // set.balanced_move(2, 3);
     // set.balanced_union(2, 4);
@@ -97,10 +109,12 @@ impl AUF {
         }
         if self.tree_size[root_of_a] < self.tree_size[root_of_b] {
             self.collection[root_of_a] = self.collection[root_of_b];
-            self.size(root_of_b, root_of_a)
+            self.tree_size[root_of_b] += self.tree_size[root_of_a];
+            self.tree_size[root_of_a] = 1;
         } else {
             self.collection[root_of_b] = self.collection[root_of_a];
-            self.size(root_of_a, root_of_b)
+            self.tree_size[root_of_a] += self.tree_size[root_of_b];
+            self.tree_size[root_of_b] = 1;
         }
     }
     pub fn balanced_move(&mut self, a: usize, b: usize) {
@@ -159,7 +173,7 @@ impl AUF {
             }
         }
         println!("{} {}", self.tree_size[root_of_a], sum);
-        println!("{:?}", self)
+        // println!("{:?}", self)
     }
 }
 
@@ -173,23 +187,23 @@ pub fn string_to_vec(a: &String) -> Vec<usize> {
     numbers
 }
 
-fn make_massive_dipshit_file() {
-    let elem = 10;
-    let com = 100;
-    println!("{} {}", elem, com);
-    let mut rng = rand::thread_rng();
-    let mut d = 1;
-    for _ in 0..com {
-        if d % 5 == 0 {
-            let a = 3;
-            let b = rng.gen_range(1..=elem);
-            println!("{} {}", a, b);
-        } else {
-            let a = rng.gen_range(1..=2);
-            let b = rng.gen_range(1..=elem);
-            let c = rng.gen_range(1..=elem);
-            println!("{} {} {}", a, b, c);
-        }
-        d += 1;
-    }
-}
+// fn make_massive_dipshit_file() {
+//     let elem = 10;
+//     let com = 100;
+//     println!("{} {}", elem, com);
+//     let mut rng = rand::thread_rng();
+//     let mut d = 1;
+//     for _ in 0..com {
+//         if d % 5 == 0 {
+//             let a = 3;
+//             let b = rng.gen_range(1..=elem);
+//             println!("{} {}", a, b);
+//         } else {
+//             let a = rng.gen_range(1..=2);
+//             let b = rng.gen_range(1..=elem);
+//             let c = rng.gen_range(1..=elem);
+//             println!("{} {} {}", a, b, c);
+//         }
+//         d += 1;
+//     }
+// }
