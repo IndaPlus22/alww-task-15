@@ -1,13 +1,18 @@
 use std::{
     io::{self, BufRead},
     process,
+    slice::SliceIndex,
+    sync::{Arc, Mutex},
+    thread::{self, Thread},
 };
 
-// use rand::Rng;
+// use rand::seq::index;
+// use gr::make_massive_dipshit_file;
+// mod gr;
 
 fn main() {
     // make_massive_dipshit_file();
-    // eprintln!("Beginning");
+    eprintln!("Beginning");
     let mut set: AUF = AUF::new();
     let input = io::stdin();
     let mut lines = input.lock().lines();
@@ -63,14 +68,14 @@ fn main() {
     // // println!("{:?}", set);
     // set.find(4 - 1);
     // set.balanced_move(3, 0);
-    // println!("{:?}", set);
+    // // println!("{:?}", set);
     // // set.balanced_move(1, 2);
     // // println!("{:?}", set);
     // set.find(4 - 1);
     // set.find(3 - 1);
-    if command_counter != set.commands {
-        panic!()
-    }
+    // if command_counter != set.commands {
+    //     panic!()
+    // }
     process::exit(0);
 }
 //AUF = Almost union find
@@ -79,19 +84,26 @@ fn main() {
 pub struct AUF {
     collection: Vec<usize>,
     tree_size: Vec<usize>,
+    n: usize,
     commands: usize,
+    counter1: usize,
+    counter2: usize,
 }
 impl AUF {
-    pub fn new() -> Self {
+    fn new() -> Self {
         let collection = Vec::default();
         let tree_size = Vec::default();
         Self {
             collection,
             tree_size,
+            n: 0,
             commands: 0,
+            counter1: 0,
+            counter2: 0,
         }
     }
-    pub fn update(&mut self, size: usize, commands: usize) {
+    fn update(&mut self, size: usize, commands: usize) {
+        self.n = size;
         let size = size + 1;
         self.collection = (1..size).collect();
         let mut tree_size = Vec::with_capacity(size);
@@ -101,49 +113,125 @@ impl AUF {
         self.tree_size = tree_size;
         self.commands = commands;
     }
-    pub fn balanced_union(&mut self, a: usize, b: usize) {
+    fn balanced_union(&mut self, a: usize, b: usize) {
         let root_of_a = self.root(a);
         let root_of_b = self.root(b);
         if root_of_a == root_of_b {
             return;
         }
+        let mut do_correction = false;
         if self.tree_size[root_of_a] < self.tree_size[root_of_b] {
             self.collection[root_of_a] = self.collection[root_of_b];
             self.tree_size[root_of_b] += self.tree_size[root_of_a];
+            if self.tree_size[root_of_a] != 0 {
+                do_correction = true
+            }
             self.tree_size[root_of_a] = 1;
+            if do_correction {
+                let first_child: Arc<Mutex<usize>> =
+                    Arc::new(Mutex::new(self.collection[self.collection[a] - 1] - 1));
+                self.correction(self.collection[a] - 1, first_child, false)
+            }
         } else {
             self.collection[root_of_b] = self.collection[root_of_a];
             self.tree_size[root_of_a] += self.tree_size[root_of_b];
+            if self.tree_size[root_of_b] != 0 {
+                do_correction = true
+            }
             self.tree_size[root_of_b] = 1;
+            if do_correction {
+                let first_child: Arc<Mutex<usize>> =
+                    Arc::new(Mutex::new(self.collection[self.collection[b] - 1] - 1));
+                self.correction(self.collection[b] - 1, first_child, false)
+            }
         }
     }
-    pub fn balanced_move(&mut self, a: usize, b: usize) {
+    fn balanced_move(&mut self, a: usize, b: usize) {
+        if self.collection[a] == self.collection[b] {
+            return;
+        }
         let root_of_a = self.root(a);
         let root_of_b = self.root(b);
-        if self.root(a) != self.root(b) {
+        // eprintln!("ra {}", root_of_a);
+        // eprintln!("rb {}", root_of_b);
+        // eprintln!("a {}", a);
+        // eprintln!("b {}", b);
+        if self.root(a) == self.root(b) {
+            return;
+        }
+        if self.collection[a] != a + 1 {
+            // eprintln!("------1--------");
+            self.tree_size[root_of_b] += 1;
+            if self.tree_size[root_of_a] > 1 {
+                self.tree_size[root_of_a] -= 1;
+            }
             self.collection[a] = root_of_b + 1;
-            let mut first = 0;
-            for i in 0..(self.collection.len()) {
-                if a + 1 == self.collection[i] {
-                    if first == 0 {
-                        first = i + 1;
-                    }
-                    self.collection[i] = first;
-                }
-            }
-            if self.tree_size[root_of_a] == 1 {
-                self.tree_size[root_of_b] += 1;
-            } else {
-                if first == 0 {
-                    first = 1
-                }
-                self.tree_size[first - 1] = self.tree_size[root_of_a] - 1;
-                self.tree_size[root_of_a] = 1;
-                self.tree_size[root_of_b] += 1;
-            }
+        } else {
+            // eprintln!("------2--------");
+            self.collection[root_of_a] = root_of_b + 1;
+            self.tree_size[root_of_a] = 1;
+            self.tree_size[root_of_b] += 1;
+            let first_child: Arc<Mutex<usize>> = Arc::new(Mutex::new(100001));
+            self.correction(a, first_child, true);
         }
     }
-    pub fn root(&mut self, a: usize) -> usize {
+    fn correction(&mut self, a: usize, first_child: Arc<Mutex<usize>>, change_tree: bool) {
+        let mut thread_count = self.n;
+        if thread_count > 4 {
+            thread_count = 4;
+        }
+        let mut chunks = self.collection.chunks(self.n / thread_count);
+        // eprintln!("{}", chunks.len());
+        let mut indexes: Vec<usize> = (0..self.n).collect();
+        let mut indexes = indexes.chunks(self.n / thread_count);
+        let tree_size = Arc::new(Mutex::new(self.tree_size.clone()));
+        let mut computations = Vec::new();
+        for index in 0..chunks.len() {
+            let mut chunk = chunks.next().unwrap().to_owned();
+            let mut indexes = indexes.next().unwrap().to_owned();
+            let first_child = Arc::clone(&first_child);
+            let tree_size = Arc::clone(&tree_size);
+            // let fc = thread::spawn(move || {
+            //     for x in 0..len_chunk {
+            //         if chunk[x] == a + 1 {
+            //             if *first_child.to_owned().lock().unwrap() == 100001 {
+            //                 *first_child.lock().unwrap() = x;
+            //                 break;
+            //             }
+            //         }
+            //     }
+            // });
+            // eprintln!("soon spawned a thread");
+            let computation = thread::spawn(move || {
+                // eprintln!("spawned a thread");
+                for x in 0..chunk.len() {
+                    if chunk[x] == a + 1 {
+                        let mut first_child = first_child.lock().unwrap();
+                        if *first_child == 100001 {
+                            *first_child = indexes[x];
+                            chunk[x] = *first_child + 1;
+                            continue;
+                        }
+                        let mut tree_size = tree_size.lock().unwrap();
+                        tree_size[*first_child] += 1;
+                        chunk[x] = *first_child + 1;
+                    }
+                }
+                chunk
+            });
+            computations.push(computation);
+        }
+        let mut result: Vec<usize> = Vec::new();
+        for computation in computations {
+            let value = computation.join().unwrap();
+            result.extend(value);
+        }
+        self.collection = result;
+        if change_tree {
+            self.tree_size = tree_size.lock().unwrap().clone();
+        }
+    }
+    fn root(&mut self, a: usize) -> usize {
         let tmp = a;
         let mut tmp_for_value = a + 1;
         while self.collection[tmp] != tmp_for_value {
@@ -152,28 +240,43 @@ impl AUF {
         }
         tmp_for_value - 1
     }
-    pub fn size(&mut self, a: usize, b: usize) {
-        self.tree_size[a] += self.tree_size[b];
-        let root = self.root(a);
-        if self.tree_size[b] > 1 {
-            self.tree_size[b] = 1;
-            for i in 0..(self.collection.len()) {
-                if b + 1 == self.collection[i] {
-                    self.collection[i] = root + 1;
-                }
-            }
-        }
-    }
-    pub fn find(&mut self, a: usize) {
+    fn find(&mut self, a: usize) {
         let root_of_a = self.root(a);
-        let mut sum = 0;
-        for i in 0..(self.collection.len()) {
-            if self.collection[i] == root_of_a + 1 {
-                sum += i + 1
-            }
+        let a = self.collection[a] - 1;
+
+        let mut thread_count = self.n;
+        if thread_count > 4 {
+            thread_count = 4;
         }
-        println!("{} {}", self.tree_size[root_of_a], sum);
-        // println!("{:?}", self)
+        let indexes: Vec<usize> = (0..self.n).collect();
+        let mut indexes = indexes.chunks(self.n / thread_count);
+        let mut chunks = self.collection.chunks(self.n / thread_count);
+        // eprintln!("{}", chunks.len());
+        let mut computations = Vec::new();
+        for _ in 0..chunks.len() {
+            let chunk = chunks.next().unwrap().to_owned();
+            let indexes = indexes.next().unwrap().to_owned();
+            // eprintln!("soon spawned a thread");
+            let computation = thread::spawn(move || {
+                // eprintln!("spawned a thread");
+                let mut value = 0;
+                for x in 0..chunk.len() {
+                    if chunk[x] == a + 1 {
+                        value += indexes[x] + 1;
+                    }
+                }
+                value
+            });
+            computations.push(computation)
+        }
+
+        let mut result: usize = 0;
+        for computation in computations {
+            let value = computation.join().unwrap();
+            result += value;
+        }
+        println!("{} {}", self.tree_size[root_of_a], result);
+        // eprintln!("{:?}", self)
     }
 }
 
@@ -186,24 +289,3 @@ pub fn string_to_vec(a: &String) -> Vec<usize> {
         .collect();
     numbers
 }
-
-// fn make_massive_dipshit_file() {
-//     let elem = 10;
-//     let com = 100;
-//     println!("{} {}", elem, com);
-//     let mut rng = rand::thread_rng();
-//     let mut d = 1;
-//     for _ in 0..com {
-//         if d % 5 == 0 {
-//             let a = 3;
-//             let b = rng.gen_range(1..=elem);
-//             println!("{} {}", a, b);
-//         } else {
-//             let a = rng.gen_range(1..=2);
-//             let b = rng.gen_range(1..=elem);
-//             let c = rng.gen_range(1..=elem);
-//             println!("{} {} {}", a, b, c);
-//         }
-//         d += 1;
-//     }
-// }
